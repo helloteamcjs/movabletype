@@ -1,32 +1,61 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>movable type</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2240%22 fill=%22black%22/></svg>">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2240%22 fill=%22black%22/></svg>">
     <style>
-        body { 
-            margin: 0; height: 100vh; background: #fff; overflow: hidden; 
-            touch-action: none; -webkit-overflow-scrolling: touch; 
-            transition: background 0.3s ease; 
+        body {
+            margin: 0;
+            height: 100vh;
+            background: #fff;
+            overflow: hidden;
+            touch-action: none;
+            -webkit-overflow-scrolling: touch;
+            transition: background 0.3s ease;
         }
-        .type-entity { 
-            position: absolute; top: 0; left: 0; user-select: none; 
-            will-change: transform; transform-origin: center center; 
-            z-index: 10; -webkit-user-drag: none; 
+
+        .type-entity {
+            position: absolute;
+            top: 0;
+            left: 0;
+            user-select: none;
+            will-change: transform;
+            transform-origin: center center;
+            z-index: 10;
+            -webkit-user-drag: none;
             transition: filter 0.3s ease;
             image-rendering: -webkit-optimize-contrast;
-            object-fit: fill; 
+            object-fit: fill;
             /* 초기 위치 어긋남 방지 */
             visibility: hidden;
         }
-        .type-entity.ready { visibility: visible; }
-        body.dark-mode { background: #000; }
-        body.dark-mode .type-entity { filter: invert(1); }
-        .grab-visual, .hitbox-visual { display: none; position: absolute; pointer-events: none; }
+
+        .type-entity.ready {
+            visibility: visible;
+        }
+
+        body.dark-mode {
+            background: #000;
+        }
+
+        body.dark-mode .type-entity {
+            filter: invert(1);
+        }
+
+        .grab-visual,
+        .hitbox-visual {
+            display: none;
+            position: absolute;
+            pointer-events: none;
+        }
     </style>
 </head>
+
 <body>
     <script>
         const files = ['t.svg', 'y.svg', 'p.svg', 'e.svg'];
@@ -43,7 +72,7 @@
         let GLOBAL_SCALE = isMobile ? 0.77 : 2.0;
         const MAX_SCALE = isMobile ? 1.88 : 4.5;
         const MIN_SCALE = isMobile ? 0.5 : 0.5;
-        const friction = 0.92; const rotFriction = 0.88; const ELASTICITY = 0.2;
+        const friction = 0.92; const rotFriction = 0.85; const ELASTICITY = 0.5;
 
         let lastTapTime = 0;
         let isScaling = false;
@@ -56,14 +85,14 @@
             const img = document.createElement('img');
             img.src = file; img.className = 'type-entity';
             document.body.appendChild(img);
-            
+
             const fileName = file.split('.')[0];
             const data = {
                 name: fileName, el: img,
                 x: window.innerWidth / 2, y: window.innerHeight / 2,
                 vx: 0, vy: 0, angle: 0, va: 0,
                 isDragging: false, isAligning: false,
-                w: 0, h: 0, 
+                w: 0, h: 0,
                 baseW: designSpecs[fileName].w,
                 baseH: designSpecs[fileName].h,
                 shapes: [], grabShapes: [],
@@ -73,9 +102,9 @@
 
             const initImg = () => {
                 if (data.initialized) return;
-                
+
                 applyScale(data, GLOBAL_SCALE);
-                
+
                 // 모바일에서 정확한 중앙 배치를 위해 뷰포트 크기 재측정
                 data.x = (window.innerWidth / 2) - (data.w / 2);
                 data.y = (window.innerHeight / 2) - (data.h / 2);
@@ -93,7 +122,7 @@
                     addShape(data, 'hit', 0.20, 0.55, -0.23, 0.05, 0); addShape(data, 'hit', 0.40, 0.50, 0.07, -0.10, 0);
                     addShape(data, 'grab', 0.35, 0.80, -0.23, 0.05, 0); addShape(data, 'grab', 0.94, 0.7, 0.01, -0.10, 0);
                 }
-                
+
                 data.initialized = true;
                 img.classList.add('ready');
                 updatePosition(data);
@@ -126,10 +155,10 @@
             data.h = data.baseH * scale;
             data.el.style.width = Math.round(data.w) + "px";
             data.el.style.height = Math.round(data.h) + "px";
-            
+
             const hw_half = data.w / 2;
             const hh_half = data.h / 2;
-            
+
             [...data.shapes, ...data.grabShapes].forEach(sh => {
                 sh.hw = hw_half * sh.rX; sh.hh = hh_half * sh.rY;
                 sh.offsetX = data.w * sh.offX; sh.offsetY = data.h * sh.offY;
@@ -169,21 +198,21 @@
                 const rect = d.el.getBoundingClientRect();
                 d.grabPoint = { x: pos.x - (rect.left + rect.width / 2), y: pos.y - (rect.top + rect.height / 2) };
                 entities.forEach(ent => ent.el.style.zIndex = 10);
-                d.el.style.zIndex = 1000; 
+                d.el.style.zIndex = 1000;
                 d.lastMouse = { x: pos.x, y: pos.y };
             } else {
                 startMousePos = { x: pos.x, y: pos.y };
                 isScaling = false;
-                
+
                 if (now - lastTapTime < 300) {
                     if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
                     triggerImpulse(pos.x, pos.y);
                     preventInversion = true;
                 } else {
                     preventInversion = false;
-                    clickTimer = setTimeout(() => { 
-                        if (!isScaling && !preventInversion) triggerInversion(); 
-                        clickTimer = null; 
+                    clickTimer = setTimeout(() => {
+                        if (!isScaling && !preventInversion) triggerInversion();
+                        clickTimer = null;
                     }, 250);
                 }
                 lastTapTime = now;
@@ -314,11 +343,12 @@
                 if (d.x < 0) { d.x = 0; d.vx *= -0.4; } if (d.x + d.w > window.innerWidth) { d.x = window.innerWidth - d.w; d.vx *= -0.4; }
                 if (d.y < 0) { d.y = 0; d.vy *= -0.4; } if (d.y + d.h > window.innerHeight) { d.y = window.innerHeight - d.h; d.vy *= -0.4; }
             });
-            resolveCollisions(); 
+            resolveCollisions();
             entities.forEach(updatePosition);
             requestAnimationFrame(animate);
         }
         animate();
     </script>
 </body>
+
 </html>
