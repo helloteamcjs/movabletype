@@ -1,55 +1,32 @@
 <!DOCTYPE html>
 <html lang="ko">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>movable type</title>
-    <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2240%22 fill=%22black%22/></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2240%22 fill=%22black%22/></svg>">
     <style>
-        body {
-            margin: 0;
-            height: 100vh;
-            background: #fff;
-            overflow: hidden;
-            touch-action: none;
-            -webkit-overflow-scrolling: touch;
-            transition: background 0.3s ease;
+        body { 
+            margin: 0; height: 100vh; background: #fff; overflow: hidden; 
+            touch-action: none; -webkit-overflow-scrolling: touch; 
+            transition: background 0.3s ease; 
         }
-
-        .type-entity {
-            position: absolute;
-            top: 0;
-            left: 0;
-            user-select: none;
-            will-change: transform;
-            transform-origin: center center;
-            z-index: 10;
-            -webkit-user-drag: none;
+        .type-entity { 
+            position: absolute; top: 0; left: 0; user-select: none; 
+            will-change: transform; transform-origin: center center; 
+            z-index: 10; -webkit-user-drag: none; 
             transition: filter 0.3s ease;
             image-rendering: -webkit-optimize-contrast;
-            object-fit: fill;
+            object-fit: fill; 
+            /* 초기 위치 어긋남 방지 */
+            visibility: hidden;
         }
-
-        body.dark-mode {
-            background: #000;
-        }
-
-        body.dark-mode .type-entity {
-            filter: invert(1);
-        }
-
-        .grab-visual,
-        .hitbox-visual {
-            display: none;
-            position: absolute;
-            pointer-events: none;
-        }
+        .type-entity.ready { visibility: visible; }
+        body.dark-mode { background: #000; }
+        body.dark-mode .type-entity { filter: invert(1); }
+        .grab-visual, .hitbox-visual { display: none; position: absolute; pointer-events: none; }
     </style>
 </head>
-
 <body>
     <script>
         const files = ['t.svg', 'y.svg', 'p.svg', 'e.svg'];
@@ -63,32 +40,32 @@
             'e': { w: 111.86, h: 202.16 }
         };
 
-        let GLOBAL_SCALE = isMobile ? 0.77 : 2.0; //
-        const MAX_SCALE = isMobile ? 1.88 : 4.5; //
-        const MIN_SCALE = isMobile ? 0.5 : 0.5; //
-        const friction = 0.92; const rotFriction = 0.88; const ELASTICITY = 0.2; //
+        let GLOBAL_SCALE = isMobile ? 0.77 : 2.0;
+        const MAX_SCALE = isMobile ? 1.88 : 4.5;
+        const MIN_SCALE = isMobile ? 0.5 : 0.5;
+        const friction = 0.92; const rotFriction = 0.88; const ELASTICITY = 0.2;
 
         let lastTapTime = 0;
         let isScaling = false;
         let startMousePos = { x: 0, y: 0 };
         let scaleDirection = 1;
         let clickTimer = null;
-        let preventInversion = false; //
+        let preventInversion = false;
 
         files.forEach((file) => {
             const img = document.createElement('img');
             img.src = file; img.className = 'type-entity';
             document.body.appendChild(img);
-
+            
             const fileName = file.split('.')[0];
             const data = {
                 name: fileName, el: img,
                 x: window.innerWidth / 2, y: window.innerHeight / 2,
                 vx: 0, vy: 0, angle: 0, va: 0,
                 isDragging: false, isAligning: false,
-                w: 0, h: 0,
-                baseW: designSpecs[fileName].w, //
-                baseH: designSpecs[fileName].h, //
+                w: 0, h: 0, 
+                baseW: designSpecs[fileName].w,
+                baseH: designSpecs[fileName].h,
                 shapes: [], grabShapes: [],
                 grabPoint: { x: 0, y: 0 }, lastMouse: { x: 0, y: 0 },
                 initialized: false
@@ -96,41 +73,39 @@
 
             const initImg = () => {
                 if (data.initialized) return;
-                applyScale(data, GLOBAL_SCALE); //
-                data.x -= data.w / 2; data.y -= data.h / 2;
+                
+                applyScale(data, GLOBAL_SCALE);
+                
+                // 모바일에서 정확한 중앙 배치를 위해 뷰포트 크기 재측정
+                data.x = (window.innerWidth / 2) - (data.w / 2);
+                data.y = (window.innerHeight / 2) - (data.h / 2);
 
                 if (fileName === 't') {
                     addShape(data, 'hit', 0.20, 0.70, -0.08, 0, 0); addShape(data, 'hit', 0.45, 0.15, -0.08, -0.35, 0);
-                } else if (fileName === 'e') {
-                    addShape(data, 'hit', 0.25, 0.65, -0.25, 0, 0); addShape(data, 'hit', 0.3, 0.24, -0.05, -0.15, 0);
-                } else if (fileName === 'y') {
-                    addShape(data, 'hit', 0.15, 0.45, -0.15, -0.20, 0); addShape(data, 'hit', 0.15, 0.6, 0.1, -0.15, 0.7);
-                } else if (fileName === 'p') {
-                    addShape(data, 'hit', 0.20, 0.55, -0.23, 0.05, 0); addShape(data, 'hit', 0.40, 0.50, 0.07, -0.10, 0);
-                }
-
-                // 그랩 영역은 파일 공통 (사용자 정의 수치 기반)
-                if (fileName === 't') {
                     addShape(data, 'grab', 0.60, 0.80, -0.05, 0.1, 0); addShape(data, 'grab', 0.94, 0.22, -0.03, -0.35, 0);
                 } else if (fileName === 'e') {
+                    addShape(data, 'hit', 0.25, 0.65, -0.25, 0, 0); addShape(data, 'hit', 0.3, 0.24, -0.05, -0.15, 0);
                     addShape(data, 'grab', 0.40, 0.75, -0.25, 0, 0); addShape(data, 'grab', 0.5, 0.4, 0, -0.15, 0.5); addShape(data, 'grab', 0.8, 0.17, -0.05, 0.36, 0.3);
                 } else if (fileName === 'y') {
+                    addShape(data, 'hit', 0.15, 0.45, -0.15, -0.20, 0); addShape(data, 'hit', 0.15, 0.6, 0.1, -0.15, 0.7);
                     addShape(data, 'grab', 0.51, 0.42, -0.02, -0.27, 0); addShape(data, 'grab', 0.18, 0.7, -0.24, -0.05, 0); addShape(data, 'grab', 0.28, 0.70, 0.1, -0.15, 0.7);
                 } else if (fileName === 'p') {
+                    addShape(data, 'hit', 0.20, 0.55, -0.23, 0.05, 0); addShape(data, 'hit', 0.40, 0.50, 0.07, -0.10, 0);
                     addShape(data, 'grab', 0.35, 0.80, -0.23, 0.05, 0); addShape(data, 'grab', 0.94, 0.7, 0.01, -0.10, 0);
                 }
-
+                
                 data.initialized = true;
+                img.classList.add('ready');
                 updatePosition(data);
             };
 
-            // 캐시 대응 로직 보완
+            // 모바일 로딩 지연 방지 (완료 상태 즉시 체크)
             if (img.complete) {
-                // naturalWidth가 확보될 때까지 아주 짧게 대기
-                if (img.naturalWidth > 0) initImg();
-                else setTimeout(initImg, 10);
+                initImg();
             } else {
                 img.onload = initImg;
+                // 만약의 사태를 위해 강제 호출 예약
+                setTimeout(initImg, 500);
             }
             entities.push(data);
         });
@@ -143,18 +118,18 @@
                     d.vx = Math.cos(angle) * force; d.vy = Math.sin(angle) * force;
                     d.va = (Math.random() - 0.5) * 0.3;
                 });
-            }, 50);
+            }, 100); // 로딩 시간을 벌어주기 위해 살짝 늦춤
         };
 
         function applyScale(data, scale) {
-            data.w = data.baseW * scale; //
-            data.h = data.baseH * scale; //
-            data.el.style.width = Math.round(data.w) + "px"; //
-            data.el.style.height = Math.round(data.h) + "px"; //
-
+            data.w = data.baseW * scale;
+            data.h = data.baseH * scale;
+            data.el.style.width = Math.round(data.w) + "px";
+            data.el.style.height = Math.round(data.h) + "px";
+            
             const hw_half = data.w / 2;
             const hh_half = data.h / 2;
-
+            
             [...data.shapes, ...data.grabShapes].forEach(sh => {
                 sh.hw = hw_half * sh.rX; sh.hh = hh_half * sh.rY;
                 sh.offsetX = data.w * sh.offX; sh.offsetY = data.h * sh.offY;
@@ -183,7 +158,7 @@
                 if (now - lastTapTime < 300) {
                     d.isAligning = true;
                     d.isDragging = false;
-                    preventInversion = true; //
+                    preventInversion = true;
                 } else {
                     d.isDragging = true;
                     d.isAligning = false;
@@ -194,21 +169,21 @@
                 const rect = d.el.getBoundingClientRect();
                 d.grabPoint = { x: pos.x - (rect.left + rect.width / 2), y: pos.y - (rect.top + rect.height / 2) };
                 entities.forEach(ent => ent.el.style.zIndex = 10);
-                d.el.style.zIndex = 1000;
+                d.el.style.zIndex = 1000; 
                 d.lastMouse = { x: pos.x, y: pos.y };
             } else {
                 startMousePos = { x: pos.x, y: pos.y };
                 isScaling = false;
-
+                
                 if (now - lastTapTime < 300) {
                     if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-                    triggerImpulse(pos.x, pos.y); //
-                    preventInversion = true; //
+                    triggerImpulse(pos.x, pos.y);
+                    preventInversion = true;
                 } else {
-                    preventInversion = false; //
-                    clickTimer = setTimeout(() => {
-                        if (!isScaling && !preventInversion) triggerInversion(); //
-                        clickTimer = null;
+                    preventInversion = false;
+                    clickTimer = setTimeout(() => { 
+                        if (!isScaling && !preventInversion) triggerInversion(); 
+                        clickTimer = null; 
                     }, 250);
                 }
                 lastTapTime = now;
@@ -217,8 +192,6 @@
 
         function handleMove(e) {
             const pos = getPointerPos(e);
-
-            // 배경 스케일링 로직 최적화
             if (startMousePos.x !== 0 && !entities.some(d => d.isDragging)) {
                 const dx = pos.x - startMousePos.x, dy = pos.y - startMousePos.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -251,21 +224,12 @@
             });
         }
 
-        function handleUp() {
-            entities.forEach(d => d.isDragging = false);
-            startMousePos = { x: 0, y: 0 };
-        }
+        function handleUp() { entities.forEach(d => d.isDragging = false); startMousePos = { x: 0, y: 0 }; }
 
         window.addEventListener('mousedown', handleDown);
         window.addEventListener('touchstart', (e) => { handleDown(e); });
         window.addEventListener('mousemove', handleMove);
-        window.addEventListener('touchmove', (e) => {
-            // 실제 드래그나 스케일링 중일 때만 캔슬
-            if (isScaling || entities.some(d => d.isDragging)) {
-                if (e.cancelable) e.preventDefault();
-            }
-            handleMove(e);
-        }, { passive: false });
+        window.addEventListener('touchmove', (e) => { if (isScaling || entities.some(d => d.isDragging)) e.preventDefault(); handleMove(e); }, { passive: false });
         window.addEventListener('mouseup', handleUp);
         window.addEventListener('touchend', handleUp);
 
@@ -294,7 +258,7 @@
             });
         }
 
-        function triggerInversion() { document.body.classList.toggle('dark-mode'); } //
+        function triggerInversion() { document.body.classList.toggle('dark-mode'); }
 
         function getShapeVertices(ent, shape) {
             const c = Math.cos(ent.angle), s = Math.sin(ent.angle), totalA = ent.angle + shape.angleOffset;
@@ -304,9 +268,8 @@
         }
 
         function resolveCollisions() {
-            const len = entities.length;
-            for (let i = 0; i < len; i++) {
-                for (let j = i + 1; j < len; j++) {
+            for (let i = 0; i < entities.length; i++) {
+                for (let j = i + 1; j < entities.length; j++) {
                     const a = entities[i], b = entities[j];
                     if (!a.initialized || !b.initialized) continue;
                     for (let sa of a.shapes) {
@@ -335,6 +298,10 @@
             }
         }
 
+        function updatePosition(data) {
+            if (data.initialized) data.el.style.transform = `translate(${data.x}px, ${data.y}px) rotate(${data.angle}rad)`;
+        }
+
         function animate() {
             entities.forEach(d => {
                 if (d.isDragging || !d.initialized) return;
@@ -344,21 +311,14 @@
                 }
                 d.vx *= friction; d.vy *= friction; d.va *= rotFriction;
                 d.x += d.vx; d.y += d.vy; d.angle += d.va;
-
-                // 화면 경계 체크 로직
-                if (d.x < 0) { d.x = 0; d.vx *= -0.4; }
-                else if (d.x + d.w > window.innerWidth) { d.x = window.innerWidth - d.w; d.vx *= -0.4; }
-                if (d.y < 0) { d.y = 0; d.vy *= -0.4; }
-                else if (d.y + d.h > window.innerHeight) { d.y = window.innerHeight - d.h; d.vy *= -0.4; }
+                if (d.x < 0) { d.x = 0; d.vx *= -0.4; } if (d.x + d.w > window.innerWidth) { d.x = window.innerWidth - d.w; d.vx *= -0.4; }
+                if (d.y < 0) { d.y = 0; d.vy *= -0.4; } if (d.y + d.h > window.innerHeight) { d.y = window.innerHeight - d.h; d.vy *= -0.4; }
             });
-            resolveCollisions();
-            entities.forEach(d => {
-                if (d.initialized) d.el.style.transform = `translate(${d.x}px, ${d.y}px) rotate(${d.angle}rad)`;
-            });
+            resolveCollisions(); 
+            entities.forEach(updatePosition);
             requestAnimationFrame(animate);
         }
         animate();
     </script>
 </body>
-
 </html>
