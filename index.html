@@ -56,9 +56,9 @@
         const isMobile = window.innerWidth < 768;
 
         // 모바일 체감 크기를 PC의 절반 이하로 낮춰야 조작 공간이 생깁니다.
-        let GLOBAL_SCALE = isMobile ? 1.0 : 2.0;
-        const MAX_SCALE = isMobile ? 2.1 : 4.5;
-        const MIN_SCALE = isMobile ? 0.5 : 0.5;
+        let GLOBAL_SCALE = isMobile ? 0.5 : 2.0;
+        const MAX_SCALE = isMobile ? 1.05 : 4.5;
+        const MIN_SCALE = isMobile ? 0.25 : 0.5;
 
         const friction = 0.92; const rotFriction = 0.88; const ELASTICITY = 0.2;
 
