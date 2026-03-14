@@ -1,63 +1,35 @@
 <!DOCTYPE html>
 <html lang="ko">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>movable type</title>
-    <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2240%22 fill=%22black%22/></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2240%22 fill=%22black%22/></svg>">
     <style>
-        body {
-            margin: 0;
-            height: 100vh;
-            background: #fff;
-            overflow: hidden;
-            touch-action: none;
-            -webkit-overflow-scrolling: touch;
-            transition: background 0.3s ease;
+        body { 
+            margin: 0; height: 100vh; background: #fff; overflow: hidden; 
+            touch-action: none; -webkit-overflow-scrolling: touch; 
+            transition: background 0.3s ease; 
         }
-
-        .type-entity {
-            position: absolute;
-            top: 0;
-            left: 0;
-            user-select: none;
-            will-change: transform;
-            transform-origin: center center;
-            z-index: 10;
-            -webkit-user-drag: none;
+        .type-entity { 
+            position: absolute; top: 0; left: 0; user-select: none; 
+            will-change: transform; transform-origin: center center; 
+            z-index: 10; -webkit-user-drag: none; 
             transition: filter 0.3s ease;
-            /* 디자인 선명도 및 비례 왜곡 방지 */
             image-rendering: -webkit-optimize-contrast;
-            object-fit: fill;
+            object-fit: fill; 
         }
-
-        body.dark-mode {
-            background: #000;
-        }
-
-        body.dark-mode .type-entity {
-            filter: invert(1);
-        }
-
-        .grab-visual,
-        .hitbox-visual {
-            display: none;
-            position: absolute;
-            pointer-events: none;
-        }
+        body.dark-mode { background: #000; }
+        body.dark-mode .type-entity { filter: invert(1); }
+        .grab-visual, .hitbox-visual { display: none; position: absolute; pointer-events: none; }
     </style>
 </head>
-
 <body>
     <script>
         const files = ['t.svg', 'y.svg', 'p.svg', 'e.svg'];
         const entities = [];
         const isMobile = window.innerWidth < 768;
 
-        // [디자인 작업 수치 (mm)]
         const designSpecs = {
             't': { w: 167.05, h: 254.39 },
             'y': { w: 156.29, h: 224.22 },
@@ -65,11 +37,9 @@
             'e': { w: 111.86, h: 202.16 }
         };
 
-        // [사용자 설정 스케일]
-        let GLOBAL_SCALE = isMobile ? 0.8 : 2.0;
-        const MAX_SCALE = isMobile ? 1.7 : 4.5;
-        const MIN_SCALE = isMobile ? 0.5 : 0.5;
-
+        let GLOBAL_SCALE = isMobile ? 0.5 : 2.0;
+        const MAX_SCALE = isMobile ? 1.05 : 4.5;
+        const MIN_SCALE = isMobile ? 0.25 : 0.5;
         const friction = 0.92; const rotFriction = 0.88; const ELASTICITY = 0.2;
 
         let lastTapTime = 0;
@@ -77,20 +47,20 @@
         let startMousePos = { x: 0, y: 0 };
         let scaleDirection = 1;
         let clickTimer = null;
+        let preventInversion = false; // [추가] 연쇄 반응 방지용 변수
 
         files.forEach((file) => {
             const img = document.createElement('img');
             img.src = file; img.className = 'type-entity';
             document.body.appendChild(img);
-
+            
             const fileName = file.split('.')[0];
             const data = {
                 name: fileName, el: img,
                 x: window.innerWidth / 2, y: window.innerHeight / 2,
                 vx: 0, vy: 0, angle: 0, va: 0,
                 isDragging: false, isAligning: false,
-                w: 0, h: 0,
-                // 작업하신 mm 수치를 베이스 크기로 고정
+                w: 0, h: 0, 
                 baseW: designSpecs[fileName].w,
                 baseH: designSpecs[fileName].h,
                 shapes: [], grabShapes: [],
@@ -100,12 +70,9 @@
 
             const initImg = () => {
                 if (data.initialized) return;
-
-                // 브라우저 naturalWidth 무시하고 설계 수치로 강제 적용
                 applyScale(data, GLOBAL_SCALE);
                 data.x -= data.w / 2; data.y -= data.h / 2;
 
-                // 물리/그랩 영역 설정 (설계 수치 기반 비율 유지)
                 if (fileName === 't') {
                     addShape(data, 'hit', 0.20, 0.70, -0.08, 0, 0); addShape(data, 'hit', 0.45, 0.15, -0.08, -0.35, 0);
                     addShape(data, 'grab', 0.60, 0.80, -0.05, 0.1, 0); addShape(data, 'grab', 0.94, 0.22, -0.03, -0.35, 0);
@@ -127,7 +94,6 @@
             entities.push(data);
         });
 
-        // 2. 인트로: 중앙 폭발
         window.onload = () => {
             setTimeout(() => {
                 entities.forEach(d => {
@@ -140,18 +106,13 @@
         };
 
         function applyScale(data, scale) {
-            // [정밀 보정] 설계 mm 수치에 scale을 곱해 절대적인 크기 산출
             data.w = data.baseW * scale;
             data.h = data.baseH * scale;
-
             data.el.style.width = Math.round(data.w) + "px";
             data.el.style.height = Math.round(data.h) + "px";
-
             [...data.shapes, ...data.grabShapes].forEach(sh => {
-                sh.hw = (data.w / 2) * sh.rX;
-                sh.hh = (data.h / 2) * sh.rY;
-                sh.offsetX = data.w * sh.offX;
-                sh.offsetY = data.h * sh.offY;
+                sh.hw = (data.w / 2) * sh.rX; sh.hh = (data.h / 2) * sh.rY;
+                sh.offsetX = data.w * sh.offX; sh.offsetY = data.h * sh.offY;
             });
         }
 
@@ -173,10 +134,10 @@
 
             if (targetEntity) {
                 const d = targetEntity;
-                // 모바일/PC 통합 더블클릭/탭 판정
                 if (now - lastTapTime < 300) {
                     d.isAligning = true;
                     d.isDragging = false;
+                    preventInversion = true; // [수정] 개체 정렬 시 배경 반전 방지
                 } else {
                     d.isDragging = true;
                     d.isAligning = false;
@@ -187,23 +148,30 @@
                 const rect = d.el.getBoundingClientRect();
                 d.grabPoint = { x: pos.x - (rect.left + rect.width / 2), y: pos.y - (rect.top + rect.height / 2) };
                 entities.forEach(ent => ent.el.style.zIndex = 10);
-                d.el.style.zIndex = 1000;
+                d.el.style.zIndex = 1000; 
                 d.lastMouse = { x: pos.x, y: pos.y };
             } else {
                 startMousePos = { x: pos.x, y: pos.y };
                 isScaling = false;
-                if (clickTimer) {
-                    clearTimeout(clickTimer); clickTimer = null;
+                
+                // [수정] 모바일 배경 더블탭(충격파) 시 일반 클릭(반전) 방지 로직
+                if (now - lastTapTime < 300) {
+                    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
                     triggerImpulse(pos.x, pos.y);
+                    preventInversion = true; // 충격파 발생 시 반전 방지
                 } else {
-                    clickTimer = setTimeout(() => { if (!isScaling) triggerInversion(); clickTimer = null; }, 250);
+                    preventInversion = false; // 일반 클릭 시작
+                    clickTimer = setTimeout(() => { 
+                        if (!isScaling && !preventInversion) triggerInversion(); 
+                        clickTimer = null; 
+                    }, 250);
                 }
+                lastTapTime = now;
             }
         }
 
         function handleMove(e) {
             const pos = getPointerPos(e);
-
             if (startMousePos.x !== 0 && !entities.some(d => d.isDragging)) {
                 const dx = pos.x - startMousePos.x, dy = pos.y - startMousePos.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -329,12 +297,11 @@
                 if (d.x < 0) { d.x = 0; d.vx *= -0.4; } if (d.x + d.w > window.innerWidth) { d.x = window.innerWidth - d.w; d.vx *= -0.4; }
                 if (d.y < 0) { d.y = 0; d.vy *= -0.4; } if (d.y + d.h > window.innerHeight) { d.y = window.innerHeight - d.h; d.vy *= -0.4; }
             });
-            resolveCollisions();
+            resolveCollisions(); 
             entities.forEach(updatePosition);
             requestAnimationFrame(animate);
         }
         animate();
     </script>
 </body>
-
 </html>
