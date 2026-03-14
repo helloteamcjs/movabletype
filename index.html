@@ -3,7 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>movable type</title>
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2240%22 fill=%22black%22/></svg>">
@@ -13,7 +14,9 @@
             height: 100vh;
             background: #fff;
             overflow: hidden;
+            /* 모바일 브라우저 기본 제스처 방지 */
             touch-action: none;
+            -webkit-overflow-scrolling: touch;
             transition: background 0.3s ease;
         }
 
@@ -51,8 +54,12 @@
     <script>
         const files = ['t.svg', 'y.svg', 'p.svg', 'e.svg'];
         const entities = [];
-        let GLOBAL_SCALE = 2.0;
-        const MIN_SCALE = 0.5; const MAX_SCALE = 4.5;
+
+        // [수정] 화면 너비에 따른 가변 초기 스케일 설정
+        const isMobile = window.innerWidth < 768;
+        let GLOBAL_SCALE = isMobile ? 0.8 : 2.0;
+
+        const MIN_SCALE = 0.3; const MAX_SCALE = 4.5;
         const friction = 0.92; const rotFriction = 0.88; const ELASTICITY = 0.2;
 
         let clickTimer = null; let isScaling = false;
@@ -81,30 +88,20 @@
                 data.x -= data.w / 2; data.y -= data.h / 2;
 
                 if (fileName === 't') {
-                    addShape(data, 'hit', 0.20, 0.70, -0.08, 0, 0);
-                    addShape(data, 'hit', 0.45, 0.15, -0.08, -0.35, 0);
-                    addShape(data, 'grab', 0.60, 0.80, -0.05, 0.1, 0);
-                    addShape(data, 'grab', 0.94, 0.22, -0.03, -0.35, 0);
+                    addShape(data, 'hit', 0.20, 0.70, -0.08, 0, 0); addShape(data, 'hit', 0.45, 0.15, -0.08, -0.35, 0);
+                    addShape(data, 'grab', 0.60, 0.80, -0.05, 0.1, 0); addShape(data, 'grab', 0.94, 0.22, -0.03, -0.35, 0);
                 }
                 else if (fileName === 'e') {
-                    addShape(data, 'hit', 0.25, 0.65, -0.25, 0, 0);
-                    addShape(data, 'hit', 0.3, 0.24, -0.05, -0.15, 0);
-                    addShape(data, 'grab', 0.40, 0.75, -0.25, 0, 0);
-                    addShape(data, 'grab', 0.5, 0.4, 0, -0.15, 0.5);
-                    addShape(data, 'grab', 0.8, 0.17, -0.05, 0.36, 0.3);
+                    addShape(data, 'hit', 0.25, 0.65, -0.25, 0, 0); addShape(data, 'hit', 0.3, 0.24, -0.05, -0.15, 0);
+                    addShape(data, 'grab', 0.40, 0.75, -0.25, 0, 0); addShape(data, 'grab', 0.5, 0.4, 0, -0.15, 0.5); addShape(data, 'grab', 0.8, 0.17, -0.05, 0.36, 0.3);
                 }
                 else if (fileName === 'y') {
-                    addShape(data, 'hit', 0.15, 0.45, -0.15, -0.20, 0);
-                    addShape(data, 'hit', 0.15, 0.6, 0.1, -0.15, 0.7);
-                    addShape(data, 'grab', 0.51, 0.42, -0.02, -0.27, 0);
-                    addShape(data, 'grab', 0.18, 0.7, -0.24, -0.05, 0);
-                    addShape(data, 'grab', 0.28, 0.70, 0.1, -0.15, 0.7);
+                    addShape(data, 'hit', 0.15, 0.45, -0.15, -0.20, 0); addShape(data, 'hit', 0.15, 0.6, 0.1, -0.15, 0.7);
+                    addShape(data, 'grab', 0.51, 0.42, -0.02, -0.27, 0); addShape(data, 'grab', 0.18, 0.7, -0.24, -0.05, 0); addShape(data, 'grab', 0.28, 0.70, 0.1, -0.15, 0.7);
                 }
                 else if (fileName === 'p') {
-                    addShape(data, 'hit', 0.20, 0.55, -0.23, 0.05, 0);
-                    addShape(data, 'hit', 0.40, 0.50, 0.07, -0.10, 0);
-                    addShape(data, 'grab', 0.35, 0.80, -0.23, 0.05, 0);
-                    addShape(data, 'grab', 0.94, 0.7, 0.01, -0.10, 0);
+                    addShape(data, 'hit', 0.20, 0.55, -0.23, 0.05, 0); addShape(data, 'hit', 0.40, 0.50, 0.07, -0.10, 0);
+                    addShape(data, 'grab', 0.35, 0.80, -0.23, 0.05, 0); addShape(data, 'grab', 0.94, 0.7, 0.01, -0.10, 0);
                 }
                 updatePosition(data);
             };
@@ -114,7 +111,8 @@
         window.onload = () => {
             setTimeout(() => {
                 entities.forEach(d => {
-                    const force = 15 + Math.random() * 15;
+                    // 모바일에서는 폭발력을 조금 더 줄여서 가독성 유지
+                    const force = isMobile ? (10 + Math.random() * 10) : (15 + Math.random() * 15);
                     const angle = Math.random() * Math.PI * 2;
                     d.vx = Math.cos(angle) * force;
                     d.vy = Math.sin(angle) * force;
@@ -131,62 +129,74 @@
             return inside;
         }
 
-        window.addEventListener('mousedown', (e) => {
+        // 터치와 마우스 이벤트를 통합 처리하는 포인터 이벤트 활용
+        const getPointerPos = (e) => {
+            const ev = e.touches ? e.touches[0] : e;
+            return { x: ev.clientX, y: ev.clientY };
+        }
+
+        window.addEventListener('mousedown', handleDown);
+        window.addEventListener('touchstart', (e) => { handleDown(e); });
+
+        function handleDown(e) {
+            const pos = getPointerPos(e);
             let targetEntity = null;
             for (let i = entities.length - 1; i >= 0; i--) {
                 const d = entities[i];
-                const inGrab = d.grabShapes.some(sh => isPointInPoly(e.clientX, e.clientY, getShapeVertices(d, sh)));
+                const inGrab = d.grabShapes.some(sh => isPointInPoly(pos.x, pos.y, getShapeVertices(d, sh)));
                 if (inGrab) { targetEntity = d; break; }
             }
             if (targetEntity) {
                 const d = targetEntity; d.isDragging = true; d.vx = d.vy = d.va = 0;
-                if (e.detail === 2) { d.isAligning = true; d.isDragging = false; }
+                // 더블탭/더블클릭 판정 (모바일 보완)
+                if (e.detail === 2 || (e.touches && clickTimer)) { d.isAligning = true; d.isDragging = false; }
                 const rect = d.el.getBoundingClientRect();
-                d.grabPoint.x = e.clientX - (rect.left + rect.width / 2);
-                d.grabPoint.y = e.clientY - (rect.top + rect.height / 2);
+                d.grabPoint.x = pos.x - (rect.left + rect.width / 2);
+                d.grabPoint.y = pos.y - (rect.top + rect.height / 2);
                 document.querySelectorAll('.type-entity').forEach(el => el.style.zIndex = 10);
-                d.el.style.zIndex = 1000; d.lastMouse = { x: e.clientX, y: e.clientY };
+                d.el.style.zIndex = 1000; d.lastMouse = { x: pos.x, y: pos.y };
             } else {
-                startMousePos = { x: e.clientX, y: e.clientY }; startScale = GLOBAL_SCALE; isScaling = false;
-                if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; triggerImpulse(e.clientX, e.clientY); }
+                startMousePos = { x: pos.x, y: pos.y }; startScale = GLOBAL_SCALE; isScaling = false;
+                if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; triggerImpulse(pos.x, pos.y); }
                 else { clickTimer = setTimeout(() => { if (!isScaling) triggerInversion(); clickTimer = null; }, 250); }
             }
-        });
+        }
 
-        window.addEventListener('mousemove', (e) => {
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e); }, { passive: false });
+
+        function handleMove(e) {
+            const pos = getPointerPos(e);
             entities.forEach(d => {
-                const inGrab = d.grabShapes.some(sh => isPointInPoly(e.clientX, e.clientY, getShapeVertices(d, sh)));
+                const inGrab = d.grabShapes.some(sh => isPointInPoly(pos.x, pos.y, getShapeVertices(d, sh)));
                 if (inGrab) { d.el.style.cursor = d.isDragging ? 'grabbing' : 'grab'; }
                 else if (!d.isDragging) { d.el.style.cursor = 'default'; }
                 if (d.isDragging) {
-                    const dx = e.clientX - d.lastMouse.x, dy = e.clientY - d.lastMouse.y;
+                    const dx = pos.x - d.lastMouse.x, dy = pos.y - d.lastMouse.y;
                     d.x += dx; d.y += dy;
                     d.va = Math.max(Math.min((d.grabPoint.x * dy - d.grabPoint.y * dx) * 0.00025, 0.12), -0.12);
-                    d.angle += d.va; d.vx = dx; d.vy = dy; d.lastMouse = { x: e.clientX, y: e.clientY };
+                    d.angle += d.va; d.vx = dx; d.vy = dy; d.lastMouse = { x: pos.x, y: pos.y };
                 }
             });
             if (startMousePos.x !== 0 && !entities.some(d => d.isDragging)) {
-                const dx = e.clientX - startMousePos.x, dy = e.clientY - startMousePos.y;
+                const dx = pos.x - startMousePos.x, dy = pos.y - startMousePos.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist > 5) {
                     isScaling = true; if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-                    const delta = dist * 0.006; let nextScale = GLOBAL_SCALE + (delta * scaleDirection);
+                    const delta = dist * (isMobile ? 0.01 : 0.006); // 모바일에서 스케일 속도 보정
+                    let nextScale = GLOBAL_SCALE + (delta * scaleDirection);
                     if (nextScale >= MAX_SCALE) { nextScale = MAX_SCALE; scaleDirection = -1; }
                     else if (nextScale <= MIN_SCALE) { nextScale = MIN_SCALE; scaleDirection = 1; }
                     GLOBAL_SCALE = nextScale; entities.forEach(d => applyScale(d, GLOBAL_SCALE));
-                    startMousePos = { x: e.clientX, y: e.clientY };
+                    startMousePos = { x: pos.x, y: pos.y };
                 }
             }
-        });
+        }
 
-        window.addEventListener('mouseup', () => { entities.forEach(d => d.isDragging = false); startMousePos = { x: 0, y: 0 }; });
+        window.addEventListener('mouseup', handleUp);
+        window.addEventListener('touchend', handleUp);
 
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                GLOBAL_SCALE = 2.0; scaleDirection = 1;
-                entities.forEach(d => { applyScale(d, GLOBAL_SCALE); d.vx = d.vy = d.va = 0; d.angle = 0; });
-            }
-        });
+        function handleUp() { entities.forEach(d => d.isDragging = false); startMousePos = { x: 0, y: 0 }; }
 
         function applyScale(data, scale) {
             data.w = data.baseW * scale; data.h = data.baseH * scale;
@@ -207,7 +217,7 @@
         }
 
         function triggerImpulse(mouseX, mouseY) {
-            const MAX_IMPULSE = 1500;
+            const MAX_IMPULSE = isMobile ? 800 : 1500;
             entities.forEach(d => {
                 const dx = (d.x + d.w / 2) - mouseX, dy = (d.y + (d.el.offsetHeight || 200) / 2) - mouseY;
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -244,7 +254,7 @@
                                 let o = Math.min(maxA, maxB) - Math.max(minA, minB); if (o < overlap) { overlap = o; normal = axis; }
                             }
                             if (!sep && normal) {
-                                const dV = { x: (b.x + b.w / 2) - (a.x + a.w / 2), y: (b.y + (b.el.offsetHeight || 200) / 2) - (a.y + (a.el.offsetHeight || 200) / 2) };
+                                const dV = { x: (b.x + b.w / 2) - (a.x + a.w / 2), y: (b.y + (b.el.offsetHeight || 200) / 2) - (a.y + (a.h / 2)) };
                                 if (dV.x * normal.x + dV.y * normal.y < 0) normal = { x: -normal.x, y: -normal.y };
                                 const rA = a.isDragging ? 0 : (b.isDragging ? 1 : 0.5), rB = b.isDragging ? 0 : (a.isDragging ? 1 : 0.5);
                                 a.x -= normal.x * overlap * rA; a.y -= normal.y * overlap * rA; b.x += normal.x * overlap * rB; b.y += normal.y * overlap * rB;
