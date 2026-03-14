@@ -1,298 +1,260 @@
 <!DOCTYPE html>
 <html lang="ko">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>movable type</title>
-    <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2240%22 fill=%22black%22/></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2240%22 fill=%22black%22/></svg>">
     <style>
-        body {
-            margin: 0;
-            height: 100vh;
-            background: #fff;
-            overflow: hidden;
-            /* 모바일 브라우저 기본 제스처 방지 */
-            touch-action: none;
+        body { 
+            margin: 0; height: 100vh; background: #fff; overflow: hidden; 
+            touch-action: none; 
             -webkit-overflow-scrolling: touch;
-            transition: background 0.3s ease;
+            transition: background 0.3s ease; 
         }
-
         .type-entity {
-            position: absolute;
-            top: 0;
-            left: 0;
-            user-select: none;
-            will-change: transform;
-            transform-origin: center center;
-            z-index: 10;
+            position: absolute; top: 0; left: 0;
+            user-select: none; will-change: transform;
+            transform-origin: center center; z-index: 10;
             -webkit-user-drag: none;
             transition: filter 0.3s ease;
         }
-
-        body.dark-mode {
-            background: #000;
-        }
-
-        body.dark-mode .type-entity {
-            filter: invert(1);
-        }
-
-        .grab-visual,
-        .hitbox-visual {
-            display: none;
-            position: absolute;
-            pointer-events: none;
-            transform-origin: center center;
-        }
+        body.dark-mode { background: #000; }
+        body.dark-mode .type-entity { filter: invert(1); }
+        .grab-visual, .hitbox-visual { display: none; position: absolute; pointer-events: none; transform-origin: center center; }
     </style>
 </head>
-
 <body>
-    <script>
-        const files = ['t.svg', 'y.svg', 'p.svg', 'e.svg'];
-        const entities = [];
+<script>
+    const files = ['t.svg', 'y.svg', 'p.svg', 'e.svg'];
+    const entities = [];
+    
+    // [핵심 수정] 모바일 대응 스케일 수치 대폭 하향
+    const isMobile = window.innerWidth < 768;
+    let GLOBAL_SCALE = isMobile ? 0.4 : 2.0; 
+    const MAX_SCALE = isMobile ? 1.5 : 4.5; // 모바일 최대 크기 제한
+    const MIN_SCALE = isMobile ? 0.2 : 0.5;
+    
+    const friction = 0.92; const rotFriction = 0.88; const ELASTICITY = 0.2; 
 
-        // [수정] 화면 너비에 따른 가변 초기 스케일 설정
-        const isMobile = window.innerWidth < 768;
-        let GLOBAL_SCALE = isMobile ? 0.8 : 2.0;
+    let clickTimer = null; let isScaling = false; 
+    let startMousePos = { x: 0, y: 0 }; let startScale = GLOBAL_SCALE;
+    let scaleDirection = 1; 
 
-        const MIN_SCALE = 0.3; const MAX_SCALE = 4.5;
-        const friction = 0.92; const rotFriction = 0.88; const ELASTICITY = 0.2;
-
-        let clickTimer = null; let isScaling = false;
-        let startMousePos = { x: 0, y: 0 }; let startScale = GLOBAL_SCALE;
-        let scaleDirection = 1;
-
-        files.forEach((file, i) => {
-            const img = document.createElement('img');
-            img.src = file; img.className = 'type-entity';
-            document.body.appendChild(img);
-            const fileName = file.split('.')[0];
-            const data = {
-                name: fileName, el: img,
-                x: window.innerWidth / 2,
-                y: window.innerHeight / 2,
-                vx: 0, vy: 0, angle: 0, va: 0,
-                isDragging: false, isAligning: false,
-                w: 0, h: 0, baseW: 0, baseH: 0,
-                shapes: [], grabShapes: [],
-                grabPoint: { x: 0, y: 0 }, lastMouse: { x: 0, y: 0 }
-            };
-
-            img.onload = () => {
-                data.baseW = img.naturalWidth; data.baseH = img.naturalHeight;
-                applyScale(data, GLOBAL_SCALE);
-                data.x -= data.w / 2; data.y -= data.h / 2;
-
-                if (fileName === 't') {
-                    addShape(data, 'hit', 0.20, 0.70, -0.08, 0, 0); addShape(data, 'hit', 0.45, 0.15, -0.08, -0.35, 0);
-                    addShape(data, 'grab', 0.60, 0.80, -0.05, 0.1, 0); addShape(data, 'grab', 0.94, 0.22, -0.03, -0.35, 0);
-                }
-                else if (fileName === 'e') {
-                    addShape(data, 'hit', 0.25, 0.65, -0.25, 0, 0); addShape(data, 'hit', 0.3, 0.24, -0.05, -0.15, 0);
-                    addShape(data, 'grab', 0.40, 0.75, -0.25, 0, 0); addShape(data, 'grab', 0.5, 0.4, 0, -0.15, 0.5); addShape(data, 'grab', 0.8, 0.17, -0.05, 0.36, 0.3);
-                }
-                else if (fileName === 'y') {
-                    addShape(data, 'hit', 0.15, 0.45, -0.15, -0.20, 0); addShape(data, 'hit', 0.15, 0.6, 0.1, -0.15, 0.7);
-                    addShape(data, 'grab', 0.51, 0.42, -0.02, -0.27, 0); addShape(data, 'grab', 0.18, 0.7, -0.24, -0.05, 0); addShape(data, 'grab', 0.28, 0.70, 0.1, -0.15, 0.7);
-                }
-                else if (fileName === 'p') {
-                    addShape(data, 'hit', 0.20, 0.55, -0.23, 0.05, 0); addShape(data, 'hit', 0.40, 0.50, 0.07, -0.10, 0);
-                    addShape(data, 'grab', 0.35, 0.80, -0.23, 0.05, 0); addShape(data, 'grab', 0.94, 0.7, 0.01, -0.10, 0);
-                }
-                updatePosition(data);
-            };
-            entities.push(data);
-        });
-
-        window.onload = () => {
-            setTimeout(() => {
-                entities.forEach(d => {
-                    // 모바일에서는 폭발력을 조금 더 줄여서 가독성 유지
-                    const force = isMobile ? (10 + Math.random() * 10) : (15 + Math.random() * 15);
-                    const angle = Math.random() * Math.PI * 2;
-                    d.vx = Math.cos(angle) * force;
-                    d.vy = Math.sin(angle) * force;
-                    d.va = (Math.random() - 0.5) * 0.3;
-                });
-            }, 100);
+    files.forEach((file, i) => {
+        const img = document.createElement('img');
+        img.src = file; img.className = 'type-entity';
+        document.body.appendChild(img);
+        const fileName = file.split('.')[0];
+        const data = {
+            name: fileName, el: img,
+            x: window.innerWidth / 2,
+            y: window.innerHeight / 2,
+            vx: 0, vy: 0, angle: 0, va: 0, 
+            isDragging: false, isAligning: false,
+            w: 0, h: 0, baseW: 0, baseH: 0,
+            shapes: [], grabShapes: [],
+            grabPoint: { x: 0, y: 0 }, lastMouse: { x: 0, y: 0 }
         };
 
-        function isPointInPoly(px, py, verts) {
-            let inside = false;
-            for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
-                if (((verts[i].y > py) !== (verts[j].y > py)) && (px < (verts[j].x - verts[i].x) * (py - verts[i].y) / (verts[j].y - verts[i].y) + verts[i].x)) inside = !inside;
+        img.onload = () => {
+            data.baseW = img.naturalWidth; data.baseH = img.naturalHeight;
+            applyScale(data, GLOBAL_SCALE);
+            data.x -= data.w / 2; data.y -= data.h / 2;
+
+            // 기존 물리/그랩 좌표 데이터 유지
+            if (fileName === 't') {
+                addShape(data, 'hit', 0.20, 0.70, -0.08, 0, 0); addShape(data, 'hit', 0.45, 0.15, -0.08, -0.35, 0);
+                addShape(data, 'grab', 0.60, 0.80, -0.05, 0.1, 0); addShape(data, 'grab', 0.94, 0.22, -0.03, -0.35, 0);
+            } else if (fileName === 'e') {
+                addShape(data, 'hit', 0.25, 0.65, -0.25, 0, 0); addShape(data, 'hit', 0.3, 0.24, -0.05, -0.15, 0);
+                addShape(data, 'grab', 0.40, 0.75, -0.25, 0, 0); addShape(data, 'grab', 0.5, 0.4, 0, -0.15, 0.5); addShape(data, 'grab', 0.8, 0.17, -0.05, 0.36, 0.3);
+            } else if (fileName === 'y') {
+                addShape(data, 'hit', 0.15, 0.45, -0.15, -0.20, 0); addShape(data, 'hit', 0.15, 0.6, 0.1, -0.15, 0.7);
+                addShape(data, 'grab', 0.51, 0.42, -0.02, -0.27, 0); addShape(data, 'grab', 0.18, 0.7, -0.24, -0.05, 0); addShape(data, 'grab', 0.28, 0.70, 0.1, -0.15, 0.7);
+            } else if (fileName === 'p') {
+                addShape(data, 'hit', 0.20, 0.55, -0.23, 0.05, 0); addShape(data, 'hit', 0.40, 0.50, 0.07, -0.10, 0);
+                addShape(data, 'grab', 0.35, 0.80, -0.23, 0.05, 0); addShape(data, 'grab', 0.94, 0.7, 0.01, -0.10, 0);
             }
-            return inside;
-        }
+            updatePosition(data);
+        };
+        entities.push(data);
+    });
 
-        // 터치와 마우스 이벤트를 통합 처리하는 포인터 이벤트 활용
-        const getPointerPos = (e) => {
-            const ev = e.touches ? e.touches[0] : e;
-            return { x: ev.clientX, y: ev.clientY };
-        }
-
-        window.addEventListener('mousedown', handleDown);
-        window.addEventListener('touchstart', (e) => { handleDown(e); });
-
-        function handleDown(e) {
-            const pos = getPointerPos(e);
-            let targetEntity = null;
-            for (let i = entities.length - 1; i >= 0; i--) {
-                const d = entities[i];
-                const inGrab = d.grabShapes.some(sh => isPointInPoly(pos.x, pos.y, getShapeVertices(d, sh)));
-                if (inGrab) { targetEntity = d; break; }
-            }
-            if (targetEntity) {
-                const d = targetEntity; d.isDragging = true; d.vx = d.vy = d.va = 0;
-                // 더블탭/더블클릭 판정 (모바일 보완)
-                if (e.detail === 2 || (e.touches && clickTimer)) { d.isAligning = true; d.isDragging = false; }
-                const rect = d.el.getBoundingClientRect();
-                d.grabPoint.x = pos.x - (rect.left + rect.width / 2);
-                d.grabPoint.y = pos.y - (rect.top + rect.height / 2);
-                document.querySelectorAll('.type-entity').forEach(el => el.style.zIndex = 10);
-                d.el.style.zIndex = 1000; d.lastMouse = { x: pos.x, y: pos.y };
-            } else {
-                startMousePos = { x: pos.x, y: pos.y }; startScale = GLOBAL_SCALE; isScaling = false;
-                if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; triggerImpulse(pos.x, pos.y); }
-                else { clickTimer = setTimeout(() => { if (!isScaling) triggerInversion(); clickTimer = null; }, 250); }
-            }
-        }
-
-        window.addEventListener('mousemove', handleMove);
-        window.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e); }, { passive: false });
-
-        function handleMove(e) {
-            const pos = getPointerPos(e);
+    window.onload = () => {
+        setTimeout(() => {
             entities.forEach(d => {
-                const inGrab = d.grabShapes.some(sh => isPointInPoly(pos.x, pos.y, getShapeVertices(d, sh)));
-                if (inGrab) { d.el.style.cursor = d.isDragging ? 'grabbing' : 'grab'; }
-                else if (!d.isDragging) { d.el.style.cursor = 'default'; }
-                if (d.isDragging) {
-                    const dx = pos.x - d.lastMouse.x, dy = pos.y - d.lastMouse.y;
-                    d.x += dx; d.y += dy;
-                    d.va = Math.max(Math.min((d.grabPoint.x * dy - d.grabPoint.y * dx) * 0.00025, 0.12), -0.12);
-                    d.angle += d.va; d.vx = dx; d.vy = dy; d.lastMouse = { x: pos.x, y: pos.y };
-                }
+                const force = isMobile ? (8 + Math.random() * 7) : (15 + Math.random() * 15);
+                const angle = Math.random() * Math.PI * 2;
+                d.vx = Math.cos(angle) * force; d.vy = Math.sin(angle) * force;
+                d.va = (Math.random() - 0.5) * 0.3;
             });
-            if (startMousePos.x !== 0 && !entities.some(d => d.isDragging)) {
-                const dx = pos.x - startMousePos.x, dy = pos.y - startMousePos.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 5) {
-                    isScaling = true; if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-                    const delta = dist * (isMobile ? 0.01 : 0.006); // 모바일에서 스케일 속도 보정
-                    let nextScale = GLOBAL_SCALE + (delta * scaleDirection);
-                    if (nextScale >= MAX_SCALE) { nextScale = MAX_SCALE; scaleDirection = -1; }
-                    else if (nextScale <= MIN_SCALE) { nextScale = MIN_SCALE; scaleDirection = 1; }
-                    GLOBAL_SCALE = nextScale; entities.forEach(d => applyScale(d, GLOBAL_SCALE));
-                    startMousePos = { x: pos.x, y: pos.y };
-                }
+        }, 100); 
+    };
+
+    function isPointInPoly(px, py, verts) {
+        let inside = false;
+        for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
+            if (((verts[i].y > py) !== (verts[j].y > py)) && (px < (verts[j].x - verts[i].x) * (py - verts[i].y) / (verts[j].y - verts[i].y) + verts[i].x)) inside = !inside;
+        }
+        return inside;
+    }
+
+    const getPointerPos = (e) => {
+        const ev = e.touches ? e.touches[0] : e;
+        return { x: ev.clientX, y: ev.clientY };
+    }
+
+    window.addEventListener('mousedown', handleDown);
+    window.addEventListener('touchstart', (e) => { handleDown(e); });
+
+    function handleDown(e) {
+        const pos = getPointerPos(e);
+        let targetEntity = null;
+        for (let i = entities.length - 1; i >= 0; i--) {
+            const d = entities[i];
+            const inGrab = d.grabShapes.some(sh => isPointInPoly(pos.x, pos.y, getShapeVertices(d, sh)));
+            if (inGrab) { targetEntity = d; break; }
+        }
+        if (targetEntity) {
+            const d = targetEntity; d.isDragging = true; d.vx = d.vy = d.va = 0;
+            if (e.detail === 2 || (e.touches && clickTimer)) { d.isAligning = true; d.isDragging = false; }
+            const rect = d.el.getBoundingClientRect();
+            d.grabPoint.x = pos.x - (rect.left + rect.width / 2);
+            d.grabPoint.y = pos.y - (rect.top + rect.height / 2);
+            document.querySelectorAll('.type-entity').forEach(el => el.style.zIndex = 10);
+            d.el.style.zIndex = 1000; d.lastMouse = { x: pos.x, y: pos.y };
+        } else {
+            startMousePos = { x: pos.x, y: pos.y }; startScale = GLOBAL_SCALE; isScaling = false; 
+            if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; triggerImpulse(pos.x, pos.y); }
+            else { clickTimer = setTimeout(() => { if (!isScaling) triggerInversion(); clickTimer = null; }, 250); }
+        }
+    }
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('touchmove', (e) => { if(!entities.some(d => d.isDragging) || isScaling) e.preventDefault(); handleMove(e); }, {passive: false});
+
+    function handleMove(e) {
+        const pos = getPointerPos(e);
+        entities.forEach(d => {
+            const inGrab = d.grabShapes.some(sh => isPointInPoly(pos.x, pos.y, getShapeVertices(d, sh)));
+            if (inGrab) { d.el.style.cursor = d.isDragging ? 'grabbing' : 'grab'; }
+            else if (!d.isDragging) { d.el.style.cursor = 'default'; }
+            if (d.isDragging) {
+                const dx = pos.x - d.lastMouse.x, dy = pos.y - d.lastMouse.y;
+                d.x += dx; d.y += dy;
+                d.va = Math.max(Math.min((d.grabPoint.x*dy - d.grabPoint.y*dx)*0.00025, 0.12), -0.12);
+                d.angle += d.va; d.vx = dx; d.vy = dy; d.lastMouse = { x: pos.x, y: pos.y };
+            }
+        });
+        if (startMousePos.x !== 0 && !entities.some(d => d.isDragging)) {
+            const dx = pos.x - startMousePos.x, dy = pos.y - startMousePos.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 5) {
+                isScaling = true; if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+                const delta = dist * (isMobile ? 0.003 : 0.006); 
+                let nextScale = GLOBAL_SCALE + (delta * scaleDirection);
+                if (nextScale >= MAX_SCALE) { nextScale = MAX_SCALE; scaleDirection = -1; }
+                else if (nextScale <= MIN_SCALE) { nextScale = MIN_SCALE; scaleDirection = 1; }
+                GLOBAL_SCALE = nextScale; entities.forEach(d => applyScale(d, GLOBAL_SCALE));
+                startMousePos = { x: pos.x, y: pos.y };
             }
         }
+    }
 
-        window.addEventListener('mouseup', handleUp);
-        window.addEventListener('touchend', handleUp);
+    window.addEventListener('mouseup', handleUp);
+    window.addEventListener('touchend', handleUp);
 
-        function handleUp() { entities.forEach(d => d.isDragging = false); startMousePos = { x: 0, y: 0 }; }
+    function handleUp() { entities.forEach(d => d.isDragging = false); startMousePos = { x: 0, y: 0 }; }
 
-        function applyScale(data, scale) {
-            data.w = data.baseW * scale; data.h = data.baseH * scale;
-            data.el.style.width = data.w + "px";
-            [...data.shapes, ...data.grabShapes].forEach(sh => {
-                sh.hw = (data.w / 2) * sh.rX; sh.hh = (data.h / 2) * sh.rY;
-                sh.offsetX = data.w * sh.offX; sh.offsetY = data.h * sh.offY;
-                sh.visualEl.style.width = (sh.hw * 2) + "px"; sh.visualEl.style.height = (sh.hh * 2) + "px";
-            });
-        }
+    function applyScale(data, scale) {
+        data.w = data.baseW * scale; data.h = data.baseH * scale;
+        data.el.style.width = data.w + "px";
+        [...data.shapes, ...data.grabShapes].forEach(sh => {
+            sh.hw = (data.w / 2) * sh.rX; sh.hh = (data.h / 2) * sh.rY;
+            sh.offsetX = data.w * sh.offX; sh.offsetY = data.h * sh.offY;
+            sh.visualEl.style.width = (sh.hw * 2) + "px"; sh.visualEl.style.height = (sh.hh * 2) + "px";
+        });
+    }
 
-        function addShape(ent, type, rX, rY, offX, offY, angOff) {
-            const db = document.createElement('div');
-            db.className = type === 'hit' ? 'hitbox-visual' : 'grab-visual';
-            document.body.appendChild(db);
-            const shape = { visualEl: db, rX, rY, offX, offY, hw: 0, hh: 0, offsetX: 0, offsetY: 0, angleOffset: angOff };
-            if (type === 'hit') ent.shapes.push(shape); else ent.grabShapes.push(shape);
-        }
+    function addShape(ent, type, rX, rY, offX, offY, angOff) {
+        const db = document.createElement('div');
+        db.className = type === 'hit' ? 'hitbox-visual' : 'grab-visual';
+        document.body.appendChild(db);
+        const shape = { visualEl: db, rX, rY, offX, offY, hw:0, hh:0, offsetX:0, offsetY:0, angleOffset: angOff };
+        if (type === 'hit') ent.shapes.push(shape); else ent.grabShapes.push(shape);
+    }
 
-        function triggerImpulse(mouseX, mouseY) {
-            const MAX_IMPULSE = isMobile ? 800 : 1500;
-            entities.forEach(d => {
-                const dx = (d.x + d.w / 2) - mouseX, dy = (d.y + (d.el.offsetHeight || 200) / 2) - mouseY;
-                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                const force = MAX_IMPULSE / (Math.pow(dist * 0.02, 2.2) + 1);
-                if (force < 1.0) return;
-                d.vx += (dx / dist) * force; d.vy += (dy / dist) * force;
-                d.va += (Math.random() - 0.5) * (force * 0.02); d.isAligning = false;
-            });
-        }
+    function triggerImpulse(mouseX, mouseY) {
+        const MAX_IMPULSE = isMobile ? 600 : 1500; 
+        entities.forEach(d => {
+            const dx = (d.x + d.w/2) - mouseX, dy = (d.y + (d.el.offsetHeight||200)/2) - mouseY;
+            const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+            const force = MAX_IMPULSE / (Math.pow(dist * 0.02, 2.2) + 1);
+            if (force < 1.0) return;
+            d.vx += (dx/dist)*force; d.vy += (dy/dist)*force;
+            d.va += (Math.random()-0.5)*(force*0.02); d.isAligning = false;
+        });
+    }
 
-        function triggerInversion() { document.body.classList.toggle('dark-mode'); }
+    function triggerInversion() { document.body.classList.toggle('dark-mode'); }
 
-        function getShapeVertices(ent, shape) {
-            const c = Math.cos(ent.angle), s = Math.sin(ent.angle), totalA = ent.angle + shape.angleOffset;
-            const ca = Math.cos(totalA), sa = Math.sin(totalA);
-            const cx = (ent.x + ent.w / 2) + (shape.offsetX * c - shape.offsetY * s), cy = (ent.y + (ent.el.offsetHeight || 200) / 2) + (shape.offsetX * s + shape.offsetY * c);
-            return [{ x: cx + (-shape.hw * ca - -shape.hh * sa), y: cy + (-shape.hw * sa + -shape.hh * ca) }, { x: cx + (shape.hw * ca - -shape.hh * sa), y: cy + (shape.hw * sa + -shape.hh * ca) }, { x: cx + (shape.hw * ca - shape.hh * sa), y: cy + (shape.hw * sa + shape.hh * ca) }, { x: cx + (-shape.hw * ca - shape.hh * sa), y: cy + (-shape.hw * sa + shape.hh * ca) }];
-        }
+    function getShapeVertices(ent, shape) {
+        const c = Math.cos(ent.angle), s = Math.sin(ent.angle), totalA = ent.angle + shape.angleOffset;
+        const ca = Math.cos(totalA), sa = Math.sin(totalA);
+        const cx = (ent.x + ent.w/2) + (shape.offsetX*c - shape.offsetY*s), cy = (ent.y + (ent.el.offsetHeight||200)/2) + (shape.offsetX*s + shape.offsetY*c);
+        return [ {x: cx + (-shape.hw*ca - -shape.hh*sa), y: cy + (-shape.hw*sa + -shape.hh*ca)}, {x: cx + (shape.hw*ca - -shape.hh*sa), y: cy + (shape.hw*sa + -shape.hh*ca)}, {x: cx + (shape.hw*ca - shape.hh*sa), y: cy + (shape.hw*sa + shape.hh*ca)}, {x: cx + (-shape.hw*ca - shape.hh*sa), y: cy + (-shape.hw*sa + shape.hh*ca)} ];
+    }
 
-        function resolveCollisions() {
-            for (let i = 0; i < entities.length; i++) {
-                for (let j = i + 1; j < entities.length; j++) {
-                    const a = entities[i], b = entities[j];
-                    for (let sa of a.shapes) {
-                        for (let sb of b.shapes) {
-                            const vA = getShapeVertices(a, sa), vB = getShapeVertices(b, sb), axes = [];
-                            [a.angle + sa.angleOffset, a.angle + sa.angleOffset + Math.PI / 2, b.angle + sb.angleOffset, b.angle + sb.angleOffset + Math.PI / 2].forEach(ang => axes.push({ x: Math.cos(ang), y: Math.sin(ang) }));
-                            let overlap = Infinity, normal = null, sep = false;
-                            for (let axis of axes) {
-                                let minA = Infinity, maxA = -Infinity, minB = Infinity, maxB = -Infinity;
-                                vA.forEach(v => { let p = v.x * axis.x + v.y * axis.y; minA = Math.min(minA, p); maxA = Math.max(maxA, p); });
-                                vB.forEach(v => { let p = v.x * axis.x + v.y * axis.y; minB = Math.min(minB, p); maxB = Math.max(maxB, p); });
-                                if (maxA < minB || maxB < minA) { sep = true; break; }
-                                let o = Math.min(maxA, maxB) - Math.max(minA, minB); if (o < overlap) { overlap = o; normal = axis; }
-                            }
-                            if (!sep && normal) {
-                                const dV = { x: (b.x + b.w / 2) - (a.x + a.w / 2), y: (b.y + (b.el.offsetHeight || 200) / 2) - (a.y + (a.h / 2)) };
-                                if (dV.x * normal.x + dV.y * normal.y < 0) normal = { x: -normal.x, y: -normal.y };
-                                const rA = a.isDragging ? 0 : (b.isDragging ? 1 : 0.5), rB = b.isDragging ? 0 : (a.isDragging ? 1 : 0.5);
-                                a.x -= normal.x * overlap * rA; a.y -= normal.y * overlap * rA; b.x += normal.x * overlap * rB; b.y += normal.y * overlap * rB;
-                                const rV = { x: b.vx - a.vx, y: b.vy - a.vy }, vN = rV.x * normal.x + rV.y * normal.y;
-                                if (vN < 0) { const imp = -(1 + ELASTICITY) * vN; if (!a.isDragging) { a.vx -= imp / 2 * normal.x; a.vy -= imp / 2 * normal.y; a.va *= 0.8; } if (!b.isDragging) { b.vx += imp / 2 * normal.x; b.vy += imp / 2 * normal.y; b.va *= 0.8; } }
-                            }
+    function resolveCollisions() {
+        for (let i = 0; i < entities.length; i++) {
+            for (let j = i + 1; j < entities.length; j++) {
+                const a = entities[i], b = entities[j];
+                for (let sa of a.shapes) {
+                    for (let sb of b.shapes) {
+                        const vA = getShapeVertices(a, sa), vB = getShapeVertices(b, sb), axes = [];
+                        [a.angle+sa.angleOffset, a.angle+sa.angleOffset+Math.PI/2, b.angle+sb.angleOffset, b.angle+sb.angleOffset+Math.PI/2].forEach(ang => axes.push({x: Math.cos(ang), y: Math.sin(ang)}));
+                        let overlap = Infinity, normal = null, sep = false;
+                        for (let axis of axes) {
+                            let minA=Infinity, maxA=-Infinity, minB=Infinity, maxB=-Infinity;
+                            vA.forEach(v => { let p=v.x*axis.x+v.y*axis.y; minA=Math.min(minA,p); maxA=Math.max(maxA,p); });
+                            vB.forEach(v => { let p=v.x*axis.x+v.y*axis.y; minB=Math.min(minB,p); maxB=Math.max(maxB,p); });
+                            if (maxA < minB || maxB < minA) { sep=true; break; }
+                            let o = Math.min(maxA, maxB) - Math.max(minA, minB); if (o < overlap) { overlap=o; normal=axis; }
+                        }
+                        if (!sep && normal) {
+                            const dV = {x: (b.x+b.w/2)-(a.x+a.w/2), y: (b.y+(b.el.offsetHeight||200)/2)-(a.y+(a.h/2))};
+                            if (dV.x*normal.x + dV.y*normal.y < 0) normal = {x:-normal.x, y:-normal.y};
+                            const rA = a.isDragging?0:(b.isDragging?1:0.5), rB = b.isDragging?0:(a.isDragging?1:0.5);
+                            a.x -= normal.x*overlap*rA; a.y -= normal.y*overlap*rA; b.x += normal.x*overlap*rB; b.y += normal.y*overlap*rB;
+                            const rV = {x: b.vx-a.vx, y: b.vy-a.vy}, vN = rV.x*normal.x + rV.y*normal.y;
+                            if (vN < 0) { const imp = -(1+ELASTICITY)*vN; if(!a.isDragging){a.vx-=imp/2*normal.x; a.vy-=imp/2*normal.y; a.va*=0.8;} if(!b.isDragging){b.vx+=imp/2*normal.x; b.vy+=imp/2*normal.y; b.va*=0.8;} }
                         }
                     }
                 }
             }
         }
+    }
 
-        function animate() {
-            entities.forEach(d => {
-                if (d.isDragging) return;
-                if (d.isAligning) {
-                    const diff = 0 - d.angle; d.va += diff * 0.05; d.va *= 0.7;
-                    if (Math.abs(diff) < 0.001 && Math.abs(d.va) < 0.001) { d.angle = 0; d.va = 0; d.isAligning = false; }
-                }
-                d.vx *= friction; d.vy *= friction; d.va *= rotFriction;
-                d.x += d.vx; d.y += d.vy; d.angle += d.va;
-                if (d.x < 0) { d.x = 0; d.vx *= -0.4; } if (d.x + d.w > window.innerWidth) { d.x = window.innerWidth - d.w; d.vx *= -0.4; }
-                if (d.y < 0) { d.y = 0; d.vy *= -0.4; } if (d.y + (d.el.offsetHeight || 200) > window.innerHeight) { d.y = window.innerHeight - (d.el.offsetHeight || 200); d.vy *= -0.4; }
-            });
-            resolveCollisions(); entities.forEach(updatePosition); requestAnimationFrame(animate);
-        }
+    function animate() {
+        entities.forEach(d => {
+            if (d.isDragging) return;
+            if (d.isAligning) {
+                const diff = 0 - d.angle; d.va += diff * 0.05; d.va *= 0.7;
+                if (Math.abs(diff) < 0.001 && Math.abs(d.va) < 0.001) { d.angle = 0; d.va = 0; d.isAligning = false; }
+            }
+            d.vx *= friction; d.vy *= friction; d.va *= rotFriction;
+            d.x += d.vx; d.y += d.vy; d.angle += d.va;
+            if (d.x < 0) { d.x=0; d.vx*=-0.4; } if (d.x+d.w > window.innerWidth) { d.x=window.innerWidth-d.w; d.vx*=-0.4; }
+            if (d.y < 0) { d.y=0; d.vy*=-0.4; } if (d.y+(d.el.offsetHeight||200) > window.innerHeight) { d.y=window.innerHeight-(d.el.offsetHeight||200); d.vy*=-0.4; }
+        });
+        resolveCollisions(); entities.forEach(updatePosition); requestAnimationFrame(animate);
+    }
 
-        function updatePosition(data) {
-            data.el.style.transform = `translate(${data.x}px, ${data.y}px) rotate(${data.angle}rad)`;
-            const c = Math.cos(data.angle), s = Math.sin(data.angle);
-            [...data.shapes, ...data.grabShapes].forEach(sh => {
-                const cx = (data.x + data.w / 2) + (sh.offsetX * c - sh.offsetY * s), cy = (data.y + (data.el.offsetHeight || 200) / 2) + (sh.offsetX * s + sh.offsetY * c);
-                sh.visualEl.style.left = cx + "px"; sh.visualEl.style.top = cy + "px";
-                sh.visualEl.style.transform = `translate(-50%, -50%) rotate(${data.angle + sh.angleOffset}rad)`;
-            });
-        }
-        animate();
-    </script>
+    function updatePosition(data) {
+        data.el.style.transform = `translate(${data.x}px, ${data.y}px) rotate(${data.angle}rad)`;
+    }
+    animate();
+</script>
 </body>
-
 </html>
