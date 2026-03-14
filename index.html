@@ -29,6 +29,9 @@
             z-index: 10;
             -webkit-user-drag: none;
             transition: filter 0.3s ease;
+            /* 디자인 선명도 및 비례 왜곡 방지 */
+            image-rendering: -webkit-optimize-contrast;
+            object-fit: fill;
         }
 
         body.dark-mode {
@@ -44,7 +47,6 @@
             display: none;
             position: absolute;
             pointer-events: none;
-            transform-origin: center center;
         }
     </style>
 </head>
@@ -55,42 +57,55 @@
         const entities = [];
         const isMobile = window.innerWidth < 768;
 
-        // [사용자 설정 반영]
+        // [디자인 작업 수치 (mm)]
+        const designSpecs = {
+            't': { w: 167.05, h: 254.39 },
+            'y': { w: 156.29, h: 224.22 },
+            'p': { w: 133.60, h: 224.22 },
+            'e': { w: 111.86, h: 202.16 }
+        };
+
+        // [사용자 설정 스케일]
         let GLOBAL_SCALE = isMobile ? 0.5 : 2.0;
-        const MAX_SCALE = isMobile ? 0.6 : 4.5;
+        const MAX_SCALE = isMobile ? 1.05 : 4.5;
         const MIN_SCALE = isMobile ? 0.25 : 0.5;
 
         const friction = 0.92; const rotFriction = 0.88; const ELASTICITY = 0.2;
 
-        let clickTimer = null;
-        let lastTapTime = 0; // 모바일 더블탭 감지용
+        let lastTapTime = 0;
         let isScaling = false;
         let startMousePos = { x: 0, y: 0 };
         let scaleDirection = 1;
+        let clickTimer = null;
 
-        files.forEach((file, i) => {
+        files.forEach((file) => {
             const img = document.createElement('img');
             img.src = file; img.className = 'type-entity';
             document.body.appendChild(img);
+
             const fileName = file.split('.')[0];
             const data = {
                 name: fileName, el: img,
                 x: window.innerWidth / 2, y: window.innerHeight / 2,
                 vx: 0, vy: 0, angle: 0, va: 0,
                 isDragging: false, isAligning: false,
-                w: 0, h: 0, baseW: 0, baseH: 0, aspect: 1,
+                w: 0, h: 0,
+                // 작업하신 mm 수치를 베이스 크기로 고정
+                baseW: designSpecs[fileName].w,
+                baseH: designSpecs[fileName].h,
                 shapes: [], grabShapes: [],
-                grabPoint: { x: 0, y: 0 }, lastMouse: { x: 0, y: 0 }
+                grabPoint: { x: 0, y: 0 }, lastMouse: { x: 0, y: 0 },
+                initialized: false
             };
 
-            img.onload = () => {
-                data.baseW = img.naturalWidth;
-                data.baseH = img.naturalHeight;
-                data.aspect = data.baseH / data.baseW; // 비례 고정용 비율 계산
+            const initImg = () => {
+                if (data.initialized) return;
 
+                // 브라우저 naturalWidth 무시하고 설계 수치로 강제 적용
                 applyScale(data, GLOBAL_SCALE);
                 data.x -= data.w / 2; data.y -= data.h / 2;
 
+                // 물리/그랩 영역 설정 (설계 수치 기반 비율 유지)
                 if (fileName === 't') {
                     addShape(data, 'hit', 0.20, 0.70, -0.08, 0, 0); addShape(data, 'hit', 0.45, 0.15, -0.08, -0.35, 0);
                     addShape(data, 'grab', 0.60, 0.80, -0.05, 0.1, 0); addShape(data, 'grab', 0.94, 0.22, -0.03, -0.35, 0);
@@ -104,15 +119,19 @@
                     addShape(data, 'hit', 0.20, 0.55, -0.23, 0.05, 0); addShape(data, 'hit', 0.40, 0.50, 0.07, -0.10, 0);
                     addShape(data, 'grab', 0.35, 0.80, -0.23, 0.05, 0); addShape(data, 'grab', 0.94, 0.7, 0.01, -0.10, 0);
                 }
+                data.initialized = true;
                 updatePosition(data);
             };
+
+            if (img.complete) initImg(); else img.onload = initImg;
             entities.push(data);
         });
 
+        // 2. 인트로: 중앙 폭발
         window.onload = () => {
             setTimeout(() => {
                 entities.forEach(d => {
-                    const force = isMobile ? (6 + Math.random() * 6) : (15 + Math.random() * 15);
+                    const force = isMobile ? (8 + Math.random() * 8) : (15 + Math.random() * 15);
                     const angle = Math.random() * Math.PI * 2;
                     d.vx = Math.cos(angle) * force; d.vy = Math.sin(angle) * force;
                     d.va = (Math.random() - 0.5) * 0.3;
@@ -120,12 +139,20 @@
             }, 50);
         };
 
-        function isPointInPoly(px, py, verts) {
-            let inside = false;
-            for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
-                if (((verts[i].y > py) !== (verts[j].y > py)) && (px < (verts[j].x - verts[i].x) * (py - verts[i].y) / (verts[j].y - verts[i].y) + verts[i].x)) inside = !inside;
-            }
-            return inside;
+        function applyScale(data, scale) {
+            // [정밀 보정] 설계 mm 수치에 scale을 곱해 절대적인 크기 산출
+            data.w = data.baseW * scale;
+            data.h = data.baseH * scale;
+
+            data.el.style.width = Math.round(data.w) + "px";
+            data.el.style.height = Math.round(data.h) + "px";
+
+            [...data.shapes, ...data.grabShapes].forEach(sh => {
+                sh.hw = (data.w / 2) * sh.rX;
+                sh.hh = (data.h / 2) * sh.rY;
+                sh.offsetX = data.w * sh.offX;
+                sh.offsetY = data.h * sh.offY;
+            });
         }
 
         const getPointerPos = (e) => {
@@ -133,12 +160,11 @@
             return { x: ev.clientX, y: ev.clientY };
         }
 
-        window.addEventListener('mousedown', handleDown);
-        window.addEventListener('touchstart', (e) => { handleDown(e); });
-
         function handleDown(e) {
             const pos = getPointerPos(e);
+            const now = Date.now();
             let targetEntity = null;
+
             for (let i = entities.length - 1; i >= 0; i--) {
                 const d = entities[i];
                 const inGrab = d.grabShapes.some(sh => isPointInPoly(pos.x, pos.y, getShapeVertices(d, sh)));
@@ -147,76 +173,84 @@
 
             if (targetEntity) {
                 const d = targetEntity;
-                const now = Date.now();
-
-                // [복구] 모바일/PC 통합 더블클릭 판정
-                if (e.detail === 2 || (now - lastTapTime < 300)) {
+                // 모바일/PC 통합 더블클릭/탭 판정
+                if (now - lastTapTime < 300) {
                     d.isAligning = true;
                     d.isDragging = false;
                 } else {
                     d.isDragging = true;
+                    d.isAligning = false;
                     d.vx = d.vy = d.va = 0;
                 }
                 lastTapTime = now;
 
                 const rect = d.el.getBoundingClientRect();
                 d.grabPoint = { x: pos.x - (rect.left + rect.width / 2), y: pos.y - (rect.top + rect.height / 2) };
-                document.querySelectorAll('.type-entity').forEach(el => el.style.zIndex = 10);
-                d.el.style.zIndex = 1000; d.lastMouse = { x: pos.x, y: pos.y };
+                entities.forEach(ent => ent.el.style.zIndex = 10);
+                d.el.style.zIndex = 1000;
+                d.lastMouse = { x: pos.x, y: pos.y };
             } else {
-                startMousePos = { x: pos.x, y: pos.y }; startScale = GLOBAL_SCALE; isScaling = false;
-                if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; triggerImpulse(pos.x, pos.y); }
-                else { clickTimer = setTimeout(() => { if (!isScaling) triggerInversion(); clickTimer = null; }, 250); }
+                startMousePos = { x: pos.x, y: pos.y };
+                isScaling = false;
+                if (clickTimer) {
+                    clearTimeout(clickTimer); clickTimer = null;
+                    triggerImpulse(pos.x, pos.y);
+                } else {
+                    clickTimer = setTimeout(() => { if (!isScaling) triggerInversion(); clickTimer = null; }, 250);
+                }
             }
         }
 
-        window.addEventListener('mousemove', handleMove);
-        window.addEventListener('touchmove', (e) => { if (!entities.some(d => d.isDragging) || isScaling) e.preventDefault(); handleMove(e); }, { passive: false });
-
         function handleMove(e) {
             const pos = getPointerPos(e);
+
+            if (startMousePos.x !== 0 && !entities.some(d => d.isDragging)) {
+                const dx = pos.x - startMousePos.x, dy = pos.y - startMousePos.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 5) {
+                    isScaling = true;
+                    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+                    const delta = dist * (isMobile ? 0.002 : 0.006);
+                    let nextScale = GLOBAL_SCALE + (delta * scaleDirection);
+                    if (nextScale >= MAX_SCALE) { nextScale = MAX_SCALE; scaleDirection = -1; }
+                    else if (nextScale <= MIN_SCALE) { nextScale = MIN_SCALE; scaleDirection = 1; }
+                    GLOBAL_SCALE = nextScale;
+                    entities.forEach(d => applyScale(d, GLOBAL_SCALE));
+                    startMousePos = { x: pos.x, y: pos.y };
+                    return;
+                }
+            }
+
             entities.forEach(d => {
                 if (!isMobile) {
                     const inGrab = d.grabShapes.some(sh => isPointInPoly(pos.x, pos.y, getShapeVertices(d, sh)));
-                    if (inGrab) { d.el.style.cursor = d.isDragging ? 'grabbing' : 'grab'; }
-                    else if (!d.isDragging) { d.el.style.cursor = 'default'; }
+                    d.el.style.cursor = inGrab ? (d.isDragging ? 'grabbing' : 'grab') : 'default';
                 }
                 if (d.isDragging) {
                     const dx = pos.x - d.lastMouse.x, dy = pos.y - d.lastMouse.y;
                     d.x += dx; d.y += dy;
                     d.va = Math.max(Math.min((d.grabPoint.x * dy - d.grabPoint.y * dx) * 0.00025, 0.12), -0.12);
-                    d.angle += d.va; d.vx = dx; d.vy = dy; d.lastMouse = { x: pos.x, y: pos.y };
+                    d.angle += d.va; d.vx = dx; d.vy = dy;
+                    d.lastMouse = { x: pos.x, y: pos.y };
                 }
             });
-            if (startMousePos.x !== 0 && !entities.some(d => d.isDragging)) {
-                const dx = pos.x - startMousePos.x, dy = pos.y - startMousePos.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 5) {
-                    isScaling = true; if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-                    const delta = dist * (isMobile ? 0.002 : 0.006);
-                    let nextScale = GLOBAL_SCALE + (delta * scaleDirection);
-                    if (nextScale >= MAX_SCALE) { nextScale = MAX_SCALE; scaleDirection = -1; }
-                    else if (nextScale <= MIN_SCALE) { nextScale = MIN_SCALE; scaleDirection = 1; }
-                    GLOBAL_SCALE = nextScale; entities.forEach(d => applyScale(d, GLOBAL_SCALE));
-                    startMousePos = { x: pos.x, y: pos.y };
-                }
-            }
         }
 
-        window.addEventListener('mouseup', handleUp);
-        window.addEventListener('touchend', handleUp);
         function handleUp() { entities.forEach(d => d.isDragging = false); startMousePos = { x: 0, y: 0 }; }
 
-        function applyScale(data, scale) {
-            data.w = data.baseW * scale;
-            data.h = data.w * data.aspect; // [수정] 너비에 맞춰 높이를 강제 계산하여 비례 고정
-            data.el.style.width = data.w + "px";
-            data.el.style.height = data.h + "px"; // [추가] 높이 고정
-            [...data.shapes, ...data.grabShapes].forEach(sh => {
-                sh.hw = (data.w / 2) * sh.rX; sh.hh = (data.h / 2) * sh.rY;
-                sh.offsetX = data.w * sh.offX; sh.offsetY = data.h * sh.offY;
-                sh.visualEl.style.width = (sh.hw * 2) + "px"; sh.visualEl.style.height = (sh.hh * 2) + "px";
-            });
+        window.addEventListener('mousedown', handleDown);
+        window.addEventListener('touchstart', (e) => { handleDown(e); });
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('touchmove', (e) => { if (isScaling || entities.some(d => d.isDragging)) e.preventDefault(); handleMove(e); }, { passive: false });
+        window.addEventListener('mouseup', handleUp);
+        window.addEventListener('touchend', handleUp);
+
+        function isPointInPoly(px, py, verts) {
+            let inside = false;
+            for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
+                if (((verts[i].y > py) !== (verts[j].y > py)) && (px < (verts[j].x - verts[i].x) * (py - verts[i].y) / (verts[j].y - verts[i].y) + verts[i].x)) inside = !inside;
+            }
+            return inside;
         }
 
         function addShape(ent, type, rX, rY, offX, offY, angOff) {
@@ -252,6 +286,7 @@
             for (let i = 0; i < entities.length; i++) {
                 for (let j = i + 1; j < entities.length; j++) {
                     const a = entities[i], b = entities[j];
+                    if (!a.initialized || !b.initialized) continue;
                     for (let sa of a.shapes) {
                         for (let sb of b.shapes) {
                             const vA = getShapeVertices(a, sa), vB = getShapeVertices(b, sb), axes = [];
@@ -278,9 +313,13 @@
             }
         }
 
+        function updatePosition(data) {
+            data.el.style.transform = `translate(${data.x}px, ${data.y}px) rotate(${data.angle}rad)`;
+        }
+
         function animate() {
             entities.forEach(d => {
-                if (d.isDragging) return;
+                if (d.isDragging || !d.initialized) return;
                 if (d.isAligning) {
                     const diff = 0 - d.angle; d.va += diff * 0.05; d.va *= 0.7;
                     if (Math.abs(diff) < 0.001 && Math.abs(d.va) < 0.001) { d.angle = 0; d.va = 0; d.isAligning = false; }
@@ -290,11 +329,9 @@
                 if (d.x < 0) { d.x = 0; d.vx *= -0.4; } if (d.x + d.w > window.innerWidth) { d.x = window.innerWidth - d.w; d.vx *= -0.4; }
                 if (d.y < 0) { d.y = 0; d.vy *= -0.4; } if (d.y + d.h > window.innerHeight) { d.y = window.innerHeight - d.h; d.vy *= -0.4; }
             });
-            resolveCollisions(); entities.forEach(updatePosition); requestAnimationFrame(animate);
-        }
-
-        function updatePosition(data) {
-            data.el.style.transform = `translate(${data.x}px, ${data.y}px) rotate(${data.angle}rad)`;
+            resolveCollisions();
+            entities.forEach(updatePosition);
+            requestAnimationFrame(animate);
         }
         animate();
     </script>
