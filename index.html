@@ -45,13 +45,6 @@
         body.dark-mode .type-entity {
             filter: invert(1);
         }
-
-        .grab-visual,
-        .hitbox-visual {
-            display: none;
-            position: absolute;
-            pointer-events: none;
-        }
     </style>
 </head>
 
@@ -62,19 +55,26 @@
         const isMobile = window.innerWidth < 768;
 
         const designSpecs = {
-            't': { w: 167.05, h: 254.39 },
-            'y': { w: 156.29, h: 224.22 },
-            'p': { w: 133.60, h: 224.22 },
-            'e': { w: 111.86, h: 202.16 }
+            't': { w: 166.17, h: 253.88 },
+            'y': { w: 134.99, h: 223.79 },
+            'p': { w: 134.99, h: 223.79 },
+            'e': { w: 134.99, h: 201.77 }
         };
 
-        const MAX_SCALE = isMobile ? 1.88 : 4.5;
-        const MIN_SCALE = isMobile ? 0.5 : 0.5;
+        // 매직 넘버 중앙 통제용 객체화
+        const CONFIG = {
+            maxScale: isMobile ? 1.2 : 2.5,
+            minScale: 0.5,
+            friction: 0.92,
+            rotFriction: 0.85,
+            wallBounce: -0.4,       // 벽면 충돌 반발력
+            alignSpeed: 0.05,       // 객체 정렬 회전 속도
+            alignDamping: 0.7,      // 정렬 시 감쇠력
+            impulseMax: isMobile ? 400 : 1500,  // 터치 시 밀어내는 파동
+            scaleSens: isMobile ? 0.002 : 0.006 // 줌 스케일 민감도
+        };
 
-        // [통일 랜덤] 이번 판의 전체 스케일을 하나로 결정
-        let GLOBAL_SCALE = MIN_SCALE + Math.random() * (MAX_SCALE - MIN_SCALE);
-
-        const friction = 0.92; const rotFriction = 0.85; const ELASTICITY = 0.5;
+        let GLOBAL_SCALE = CONFIG.minScale + Math.random() * (CONFIG.maxScale - CONFIG.minScale);
 
         let lastTapTime = 0; let isScaling = false; let startMousePos = { x: 0, y: 0 };
         let scaleDirection = 1; let clickTimer = null; let preventInversion = false;
@@ -83,7 +83,6 @@
             const img = document.createElement('img');
             img.src = file; img.className = 'type-entity';
             document.body.appendChild(img);
-
             const fileName = file.split('.')[0];
             const data = {
                 name: fileName, el: img,
@@ -105,25 +104,26 @@
                     addShape(data, 'grab', 0.60, 0.80, -0.05, 0.1, 0); addShape(data, 'grab', 0.94, 0.22, -0.03, -0.35, 0);
                 } else if (fileName === 'e') {
                     addShape(data, 'hit', 0.25, 0.65, -0.25, 0, 0); addShape(data, 'hit', 0.3, 0.24, -0.05, -0.15, 0);
-                    addShape(data, 'grab', 0.40, 0.75, -0.25, 0, 0); addShape(data, 'grab', 0.5, 0.4, 0, -0.15, 0.5); addShape(data, 'grab', 0.8, 0.17, -0.05, 0.36, 0.3);
+                    addShape(data, 'grab', 0.40, 0.75, -0.25, 0, 0); addShape(data, 'grab', 0.5, 0.4, 0, -0.15, 0.5);
+                    addShape(data, 'grab', 0.8, 0.17, -0.05, 0.36, 0.3);
+                    addShape(data, 'hit', 0.48, 0.10, -0.05, 0.36, 0.3);
                 } else if (fileName === 'y') {
-                    addShape(data, 'hit', 0.15, 0.45, -0.15, -0.20, 0); addShape(data, 'hit', 0.15, 0.6, 0.1, -0.15, 0.7);
-                    addShape(data, 'grab', 0.51, 0.42, -0.02, -0.27, 0); addShape(data, 'grab', 0.18, 0.7, -0.24, -0.05, 0); addShape(data, 'grab', 0.28, 0.70, 0.1, -0.15, 0.7);
+                    addShape(data, 'hit', 0.20, 0.55, 0.23, 0.05, 0); addShape(data, 'hit', 0.40, 0.50, -0.07, -0.10, 0);
+                    addShape(data, 'grab', 0.35, 0.80, 0.23, 0.05, 0); addShape(data, 'grab', 0.94, 0.7, -0.01, -0.10, 0);
+                    addShape(data, 'grab', 0.8, 0.17, -0.05, 0.36, 0.3);
+                    addShape(data, 'hit', 0.48, 0.10, -0.05, 0.36, 0.3);
                 } else if (fileName === 'p') {
                     addShape(data, 'hit', 0.20, 0.55, -0.23, 0.05, 0); addShape(data, 'hit', 0.40, 0.50, 0.07, -0.10, 0);
                     addShape(data, 'grab', 0.35, 0.80, -0.23, 0.05, 0); addShape(data, 'grab', 0.94, 0.7, 0.01, -0.10, 0);
                 }
                 data.initialized = true; img.classList.add('ready'); updatePosition(data);
             };
-
             if (img.complete) initImg(); else img.onload = initImg;
             entities.push(data);
         });
 
         window.onload = () => {
-            // [통일 랜덤] 시작 모드 무작위 결정
             if (Math.random() > 0.5) document.body.classList.add('dark-mode');
-
             setTimeout(() => {
                 entities.forEach(d => {
                     const force = isMobile ? (8 + Math.random() * 8) : (15 + Math.random() * 15);
@@ -179,10 +179,10 @@
                 const dx = pos.x - startMousePos.x, dy = pos.y - startMousePos.y;
                 if (Math.sqrt(dx * dx + dy * dy) > 5) {
                     isScaling = true; if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-                    const delta = Math.sqrt(dx * dx + dy * dy) * (isMobile ? 0.002 : 0.006);
+                    const delta = Math.sqrt(dx * dx + dy * dy) * CONFIG.scaleSens;
                     let nextScale = GLOBAL_SCALE + (delta * scaleDirection);
-                    if (nextScale >= MAX_SCALE) { nextScale = MAX_SCALE; scaleDirection = -1; }
-                    else if (nextScale <= MIN_SCALE) { nextScale = MIN_SCALE; scaleDirection = 1; }
+                    if (nextScale >= CONFIG.maxScale) { nextScale = CONFIG.maxScale; scaleDirection = -1; }
+                    else if (nextScale <= CONFIG.minScale) { nextScale = CONFIG.minScale; scaleDirection = 1; }
                     GLOBAL_SCALE = nextScale; entities.forEach(d => applyScale(d, GLOBAL_SCALE));
                     startMousePos = { x: pos.x, y: pos.y }; return;
                 }
@@ -223,10 +223,9 @@
         }
 
         function triggerImpulse(mouseX, mouseY) {
-            const MAX_IMPULSE = isMobile ? 400 : 1500;
             entities.forEach(d => {
                 const dx = (d.x + d.w / 2) - mouseX, dy = (d.y + d.h / 2) - mouseY;
-                const force = MAX_IMPULSE / (Math.pow(Math.sqrt(dx * dx + dy * dy) * 0.02, 2.2) + 1);
+                const force = CONFIG.impulseMax / (Math.pow(Math.sqrt(dx * dx + dy * dy) * 0.02, 2.2) + 1);
                 if (force < 1.0) return;
                 d.vx += (dx / Math.sqrt(dx * dx + dy * dy)) * force; d.vy += (dy / Math.sqrt(dx * dx + dy * dy)) * force;
                 d.va += (Math.random() - 0.5) * (force * 0.02); d.isAligning = false;
@@ -242,14 +241,21 @@
         }
 
         function resolveCollisions() {
+            const scaleRatio = (GLOBAL_SCALE - CONFIG.minScale) / (CONFIG.maxScale - CONFIG.minScale);
+            const easeRatio = Math.pow(scaleRatio, 1.8);
+            const positionalCorrection = Math.max(0.01, 1.0 - (easeRatio * 0.99));
+            const restitution = Math.max(0, 1.2 * (1.0 - easeRatio * 1.0));
+
             for (let i = 0; i < entities.length; i++) {
                 for (let j = i + 1; j < entities.length; j++) {
                     const a = entities[i], b = entities[j];
                     if (!a.initialized || !b.initialized) continue;
+
                     for (let sa of a.shapes) {
                         for (let sb of b.shapes) {
                             const vA = getShapeVertices(a, sa), vB = getShapeVertices(b, sb), axes = [];
                             [a.angle + sa.angleOffset, a.angle + sa.angleOffset + 1.57, b.angle + sb.angleOffset, b.angle + sb.angleOffset + 1.57].forEach(ang => axes.push({ x: Math.cos(ang), y: Math.sin(ang) }));
+
                             let overlap = Infinity, normal = null, sep = false;
                             for (let axis of axes) {
                                 let minA = Infinity, maxA = -Infinity, minB = Infinity, maxB = -Infinity;
@@ -258,13 +264,26 @@
                                 if (maxA < minB || maxB < minA) { sep = true; break; }
                                 let o = Math.min(maxA, maxB) - Math.max(minA, minB); if (o < overlap) { overlap = o; normal = axis; }
                             }
+
                             if (!sep && normal) {
                                 const dV = { x: (b.x + b.w / 2) - (a.x + a.w / 2), y: (b.y + b.h / 2) - (a.y + a.h / 2) };
                                 if (dV.x * normal.x + dV.y * normal.y < 0) normal = { x: -normal.x, y: -normal.y };
-                                const rA = a.isDragging ? 0 : (b.isDragging ? 1 : 0.5), rB = b.isDragging ? 0 : (a.isDragging ? 1 : 0.5);
-                                a.x -= normal.x * overlap * rA; a.y -= normal.y * overlap * rA; b.x += normal.x * overlap * rB; b.y += normal.y * overlap * rB;
+
+                                const rA = a.isDragging ? 0 : (b.isDragging ? 1 : 0.5);
+                                const rB = b.isDragging ? 0 : (a.isDragging ? 1 : 0.5);
+
+                                a.x -= normal.x * (overlap * positionalCorrection) * rA;
+                                a.y -= normal.y * (overlap * positionalCorrection) * rA;
+                                b.x += normal.x * (overlap * positionalCorrection) * rB;
+                                b.y += normal.y * (overlap * positionalCorrection) * rB;
+
                                 const rV = { x: b.vx - a.vx, y: b.vy - a.vy }, vN = rV.x * normal.x + rV.y * normal.y;
-                                if (vN < 0) { const imp = -(1.2) * vN; if (!a.isDragging) { a.vx -= imp / 2 * normal.x; a.vy -= imp / 2 * normal.y; a.va *= 0.8; } if (!b.isDragging) { b.vx += imp / 2 * normal.x; b.vy += imp / 2 * normal.y; b.va *= 0.8; } }
+
+                                if (vN < 0) {
+                                    const imp = -restitution * vN;
+                                    if (!a.isDragging) { a.vx -= imp / 2 * normal.x; a.vy -= imp / 2 * normal.y; a.va *= 0.8; }
+                                    if (!b.isDragging) { b.vx += imp / 2 * normal.x; b.vy += imp / 2 * normal.y; b.va *= 0.8; }
+                                }
                             }
                         }
                     }
@@ -272,17 +291,41 @@
             }
         }
 
-        function updatePosition(data) { if (data.initialized) data.el.style.transform = `translate(${data.x}px, ${data.y}px) rotate(${data.angle}rad)`; }
+        function updatePosition(data) {
+            if (data.initialized) {
+                data.el.style.transform = `translate(${data.x}px, ${data.y}px) rotate(${data.angle}rad)`;
+            }
+        }
+
         function animate() {
             entities.forEach(d => {
                 if (d.isDragging || !d.initialized) return;
                 if (d.isAligning) {
-                    const diff = 0 - d.angle; d.va += diff * 0.05; d.va *= 0.7;
+                    const diff = 0 - d.angle; d.va += diff * CONFIG.alignSpeed; d.va *= CONFIG.alignDamping;
                     if (Math.abs(diff) < 0.001 && Math.abs(d.va) < 0.001) { d.angle = 0; d.va = 0; d.isAligning = false; }
                 }
-                d.vx *= friction; d.vy *= friction; d.va *= rotFriction; d.x += d.vx; d.y += d.vy; d.angle += d.va;
-                if (d.x < 0) { d.x = 0; d.vx *= -0.4; } else if (d.x + d.w > window.innerWidth) { d.x = window.innerWidth - d.w; d.vx *= -0.4; }
-                if (d.y < 0) { d.y = 0; d.vy *= -0.4; } else if (d.y + d.h > window.innerHeight) { d.y = window.innerHeight - d.h; d.vy *= -0.4; }
+                d.vx *= CONFIG.friction; d.vy *= CONFIG.friction; d.va *= CONFIG.rotFriction;
+                d.x += d.vx; d.y += d.vy; d.angle += d.va;
+
+                let minX, maxX, minY, maxY;
+
+                if (d.w <= window.innerWidth) {
+                    minX = 0; maxX = window.innerWidth - d.w;
+                } else {
+                    minX = window.innerWidth - d.w; maxX = 0;
+                }
+
+                if (d.h <= window.innerHeight) {
+                    minY = 0; maxY = window.innerHeight - d.h;
+                } else {
+                    minY = window.innerHeight - d.h; maxY = 0;
+                }
+
+                if (d.x < minX) { d.x = minX; d.vx *= CONFIG.wallBounce; }
+                else if (d.x > maxX) { d.x = maxX; d.vx *= CONFIG.wallBounce; }
+
+                if (d.y < minY) { d.y = minY; d.vy *= CONFIG.wallBounce; }
+                else if (d.y > maxY) { d.y = maxY; d.vy *= CONFIG.wallBounce; }
             });
             resolveCollisions(); entities.forEach(updatePosition); requestAnimationFrame(animate);
         }
